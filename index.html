@@ -376,10 +376,17 @@ function effectiveDaysPerSec(planet, speedVal){
   return Math.min(baseDPS, capDPS);
 }
 
-// 막대 길이: 선택한 행성 궤도와 지구 궤도 중 더 큰 쪽보다 확실히 길게,
-// 그리고 애니메이션 내내 값이 변하지 않는 고정 길이로 둔다.
+// 막대 길이: 선택한 행성 궤도와 지구 궤도 중 더 큰 쪽보다 "일정한 AU만큼"
+// 더 길게 잡는다 (곱셈 비율이 아니라 고정 여유값을 더하는 방식).
+// - 곱셈 방식(예: ×1.4)을 쓰면 지구보다 안쪽 행성(금성 등)은 전부 지구 궤도
+//   기준값에 눌려 막대가 상대적으로 너무 짧아지고, 반대로 목성처럼 큰 행성은
+//   막대가 궤도보다 훨씬 더 커져서 화면 스케일이 지나치게 축소되는 문제가 있었다.
+// - 고정 여유값(AU) 방식은 모든 행성에서 "궤도보다 살짝 더 긴 정도"를 일정하게
+//   유지해 주기 때문에 금성은 충분히 길어지고, 목성 이후는 불필요하게 길어지지
+//   않는다.
+const ROD_MARGIN_AU = 1.1;
 function rodLengthAU(planet){
-  return Math.max(EARTH_ORBIT.a, planet.a) * 1.4;
+  return Math.max(EARTH_ORBIT.a, planet.a) + ROD_MARGIN_AU;
 }
 
 // 화면에 다 들어오도록: 지구가 궤도 어디에 있든, 막대 끝이 도달할 수 있는
