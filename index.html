@@ -357,20 +357,37 @@ const cx = W/2, cy = H/2;
 let current = PLANETS[0];
 let simDays = 0;
 let lastTraceDay = 0;
-let trace = [];              // {x,y} points on the sky ring
+let trace = [];              // {x,y} points the rod-tip has visited
 let playing = true;
-let speed = 4;                 // 1~10, simulated days per animation frame(ish)
-const TRACE_EVERY_DAYS = 10;
-const MAX_TRACE = 4000;
+let speed = 4;                  // 1~10, 슬라이더 값
+const TRACE_EVERY_DAYS = 2;     // 촘촘한 궤적을 위해 간격을 크게 줄임
+const MAX_TRACE = 8000;
 
-function scaleFor(planet){
-  const maxA = Math.max(EARTH_ORBIT.a, planet.a);
-  const margin = 1.28;
-  return (Math.min(W,H)/2 - 24) / (maxA*margin);
+// 행성 자체의 겉보기 각속도가 너무 빨라 보이지 않도록 상한을 둔다.
+// (지구와 선택한 행성은 같은 simDays 시계를 공유하므로, 이렇게 상한을 걸어도
+//  둘 사이의 상대 속도 비율=역행 루프의 실제 모양은 그대로 유지된다.)
+const BASE_DAYS_PER_SEC_AT_S4 = 32;   // 기존과 동일한 기본 속도
+const MAX_DEG_PER_SEC_AT_S4 = 15;     // 행성이 초당 최대 15도까지만 돌도록 제한
+
+function effectiveDaysPerSec(planet, speedVal){
+  const k = speedVal/4;
+  const baseDPS = BASE_DAYS_PER_SEC_AT_S4 * k;
+  const capDPS  = (MAX_DEG_PER_SEC_AT_S4*k) * planet.T/360;
+  return Math.min(baseDPS, capDPS);
 }
 
-function rodProjectionRadius(planet){
-  return planet.a*1.2 + 0.35;   // 대상 행성 궤도보다 살짝 길게 (AU 단위)
+// 막대 길이: 선택한 행성 궤도와 지구 궤도 중 더 큰 쪽보다 확실히 길게,
+// 그리고 애니메이션 내내 값이 변하지 않는 고정 길이로 둔다.
+function rodLengthAU(planet){
+  return Math.max(EARTH_ORBIT.a, planet.a) * 1.4;
+}
+
+// 화면에 다 들어오도록: 지구가 궤도 어디에 있든, 막대 끝이 도달할 수 있는
+// 태양으로부터의 최대 거리(삼각부등식 기준)를 기준으로 스케일을 잡는다.
+function scaleFor(planet){
+  const bound = EARTH_ORBIT.a + rodLengthAU(planet);
+  const margin = 1.05;
+  return (Math.min(W,H)/2 - 24) / (bound*margin);
 }
 
 function selectPlanet(key){
@@ -378,10 +395,10 @@ function selectPlanet(key){
   simDays = 0; lastTraceDay = 0; trace = [];
   setActiveButton(key);
   document.getElementById("simTitle").textContent = current.label + " (" + current.key + ")";
-  document.getElementById("simSub").textContent = "지구 ↔ " + current.label + " 를 잇는 막대의 하늘 투영";
+  document.getElementById("simSub").textContent = "지구 ↔ " + current.label + " 방향, 고정 길이 막대";
   document.getElementById("statA").textContent = current.a.toFixed(3) + " AU";
   document.getElementById("statT").textContent = current.T.toFixed(1) + " 일";
-  document.getElementById("statRod").textContent = rodProjectionRadius(current).toFixed(2) + " AU";
+  document.getElementById("statRod").textContent = rodLengthAU(current).toFixed(2) + " AU (고정)";
   buildHistory(current);
   drawScene();
 }
@@ -389,14 +406,7 @@ function selectPlanet(key){
 function drawScene(){
   ctx.clearRect(0,0,W,H);
   const scale = scaleFor(current);
-
-  // 하늘 원(막대 투영 반지름)
-  const skyR = rodProjectionRadius(current) * scale;
-  ctx.beginPath();
-  ctx.arc(cx,cy,skyR,0,Math.PI*2);
-  ctx.strokeStyle = "rgba(77,216,208,0.18)";
-  ctx.lineWidth = 1;
-  ctx.stroke();
+  const rodPx = rodLengthAU(current) * scale;
 
   // 궤도선
   ctx.beginPath(); ctx.arc(cx,cy, EARTH_ORBIT.a*scale, 0, Math.PI*2);
@@ -418,11 +428,11 @@ function drawScene(){
   const px = cx + Math.cos(thP)*current.a*scale;
   const py = cy + Math.sin(thP)*current.a*scale;
 
-  // 막대 + 투영 지점 (실제 계산은 drawRodAndTrace 안에서 처리)
+  // 막대 방향 (지구 -> 행성 단위 벡터). 길이는 rodPx로 고정.
   const dirx = px-ex, diry = py-ey;
   const dist = Math.hypot(dirx,diry) || 1e-6;
   const ux = dirx/dist, uy = diry/dist;
-  drawRodAndTrace(ex,ey,ux,uy,skyR);
+  drawRodAndTrace(ex,ey,ux,uy,rodPx);
 
   // 지구, 행성 마커
   ctx.beginPath(); ctx.arc(ex,ey,6,0,Math.PI*2);
@@ -434,20 +444,11 @@ function drawScene(){
   document.getElementById("statDays").textContent = Math.floor(simDays);
 }
 
-function drawRodAndTrace(ex,ey,ux,uy,skyR){
-  // 막대의 끝점: 지구에서 (ux,uy) 방향으로 나아가다 '하늘 원'(태양 중심 skyR)과 만나는 점
-  // 태양 중심 원과 지구에서 출발하는 반직선의 교점을 계산
-  const ox = ex-cx, oy = ey-cy;
-  const b = 2*(ox*ux+oy*uy);
-  const c = ox*ox+oy*oy - skyR*skyR;
-  const disc = b*b - 4*c;
-  let t = 0;
-  if (disc >= 0){
-    const sq = Math.sqrt(disc);
-    const t1 = (-b+sq)/2, t2=(-b-sq)/2;
-    t = Math.max(t1,t2); // 앞쪽 교점
-  }
-  const tipx = ex + ux*t, tipy = ey + uy*t;
+function drawRodAndTrace(ex,ey,ux,uy,rodPx){
+  // 막대의 끝점: 지구에서 (ux,uy) 방향으로 '고정된 길이(rodPx)'만큼 나아간 지점.
+  // 태양이 아니라 지구를 기준으로 길이가 고정되어 있으므로, 지구가 궤도 위
+  // 어디에 있어도 막대 길이 자체는 절대 변하지 않는다.
+  const tipx = ex + ux*rodPx, tipy = ey + uy*rodPx;
 
   // 막대
   ctx.beginPath();
@@ -458,7 +459,7 @@ function drawRodAndTrace(ex,ey,ux,uy,skyR){
   ctx.beginPath(); ctx.arc(tipx,tipy,3.2,0,Math.PI*2);
   ctx.fillStyle="#eafffb"; ctx.shadowColor="#4dd8d0"; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0;
 
-  // 궤적 점 찍기
+  // 궤적 점 찍기 (촘촘하게)
   if (simDays - lastTraceDay >= TRACE_EVERY_DAYS){
     trace.push({x:tipx,y:tipy});
     if (trace.length > MAX_TRACE) trace.shift();
@@ -467,7 +468,7 @@ function drawRodAndTrace(ex,ey,ux,uy,skyR){
   for (let i=0;i<trace.length;i++){
     const p = trace[i];
     const age = (trace.length-i)/trace.length;
-    ctx.beginPath(); ctx.arc(p.x,p.y, 2.1, 0, Math.PI*2);
+    ctx.beginPath(); ctx.arc(p.x,p.y, 1.8, 0, Math.PI*2);
     ctx.fillStyle = "rgba(77,216,208," + (0.15+0.55*(1-age*0.6)).toFixed(2) + ")";
     ctx.fill();
   }
@@ -480,7 +481,7 @@ function tick(ts){
   const dtSec = (ts-lastTs)/1000;
   lastTs = ts;
   if (playing){
-    simDays += dtSec * speed * 8; // 속도 배율(느리게 시작)
+    simDays += dtSec * effectiveDaysPerSec(current, speed);
     drawScene();
   }
   requestAnimationFrame(tick);
