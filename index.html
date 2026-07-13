@@ -1,0 +1,585 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>역행 관측소 — 지구에서 바라본 태양계</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-void: #05070f;
+    --bg-panel: #0b1020;
+    --bg-panel-2: #0d1428;
+    --line-dim: #1c2540;
+    --cyan: #4dd8d0;
+    --cyan-dim: #235f5c;
+    --blue: #5b8cff;
+    --warm: #ff7a52;
+    --warm-dim: #7a3f2c;
+    --text-hi: #e9edf7;
+    --text-mid: #9aa6c4;
+    --text-dim: #5e6786;
+  }
+  *{ box-sizing: border-box; }
+  html,body{
+    margin:0; padding:0;
+    background: radial-gradient(ellipse at 50% -10%, #0d1330 0%, var(--bg-void) 55%);
+    color: var(--text-hi);
+    font-family: 'Inter', system-ui, sans-serif;
+    min-height: 100vh;
+  }
+  /* faint starfield */
+  body::before{
+    content:"";
+    position: fixed; inset:0;
+    background-image:
+      radial-gradient(1px 1px at 20% 30%, rgba(255,255,255,.5) 0, transparent 60%),
+      radial-gradient(1px 1px at 65% 15%, rgba(255,255,255,.4) 0, transparent 60%),
+      radial-gradient(1.5px 1.5px at 80% 60%, rgba(255,255,255,.5) 0, transparent 60%),
+      radial-gradient(1px 1px at 35% 75%, rgba(255,255,255,.35) 0, transparent 60%),
+      radial-gradient(1px 1px at 10% 85%, rgba(255,255,255,.4) 0, transparent 60%),
+      radial-gradient(1.5px 1.5px at 50% 45%, rgba(255,255,255,.3) 0, transparent 60%),
+      radial-gradient(1px 1px at 90% 25%, rgba(255,255,255,.4) 0, transparent 60%);
+    background-size: 100% 100%;
+    pointer-events:none;
+    z-index:0;
+  }
+  header, main, footer{ position: relative; z-index:1; }
+
+  header{
+    max-width: 1080px; margin: 0 auto; padding: 48px 24px 20px;
+    text-align:center;
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono', monospace;
+    letter-spacing:.18em; text-transform:uppercase;
+    font-size:12px; color: var(--cyan);
+    margin-bottom:10px;
+  }
+  h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:600; font-size: clamp(28px, 4vw, 44px);
+    margin: 0 0 12px;
+    letter-spacing: -0.01em;
+  }
+  header p{
+    color: var(--text-mid); font-size:15px; line-height:1.6;
+    max-width: 640px; margin: 0 auto;
+  }
+
+  .dial{
+    max-width: 1080px; margin: 28px auto 0; padding: 0 24px;
+    display:flex; flex-wrap:wrap; gap:8px; justify-content:center;
+  }
+  .dial button{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:13px; letter-spacing:.02em;
+    background: var(--bg-panel); color: var(--text-mid);
+    border: 1px solid var(--line-dim); border-radius: 999px;
+    padding: 9px 18px; cursor:pointer;
+    transition: all .15s ease;
+  }
+  .dial button:hover{ border-color: var(--cyan-dim); color: var(--text-hi); }
+  .dial button.active{
+    background: linear-gradient(180deg, rgba(77,216,208,.16), rgba(77,216,208,.04));
+    border-color: var(--cyan); color: var(--cyan);
+    box-shadow: 0 0 18px rgba(77,216,208,.15);
+  }
+
+  main{ max-width: 1080px; margin: 28px auto 0; padding: 0 24px 60px; }
+
+  .panel{
+    background: linear-gradient(180deg, var(--bg-panel-2), var(--bg-panel));
+    border: 1px solid var(--line-dim);
+    border-radius: 18px;
+    padding: 22px;
+    margin-bottom: 28px;
+  }
+  .panel-head{
+    display:flex; justify-content:space-between; align-items:baseline;
+    flex-wrap:wrap; gap:8px; margin-bottom: 14px;
+  }
+  .panel-head h2{
+    font-family:'Space Grotesk', sans-serif; font-size:20px; margin:0; font-weight:600;
+  }
+  .panel-head .sub{ color: var(--text-dim); font-size:13px; font-family:'IBM Plex Mono', monospace; }
+
+  .sim-layout{ display:flex; gap:22px; flex-wrap:wrap; }
+  #orbitCanvas{
+    background: radial-gradient(ellipse at 50% 50%, #0a0f22 0%, #060811 75%);
+    border-radius: 14px; border:1px solid var(--line-dim);
+    flex: 1 1 480px; max-width: 100%; display:block;
+  }
+  .stats{
+    flex: 0 0 220px;
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .stat{
+    background: rgba(255,255,255,.02);
+    border:1px solid var(--line-dim); border-radius:10px;
+    padding: 12px 14px;
+  }
+  .stat .k{ font-size:11px; color:var(--text-dim); text-transform:uppercase; letter-spacing:.08em; margin-bottom:4px;}
+  .stat .v{ font-family:'IBM Plex Mono', monospace; font-size:16px; color:var(--text-hi); }
+  .stat .v.cyan{ color: var(--cyan); }
+  .stat .v.warm{ color: var(--warm); }
+
+  .controls{ display:flex; align-items:center; gap:14px; margin-top:16px; flex-wrap:wrap; }
+  .controls button{
+    font-family:'IBM Plex Mono', monospace; font-size:13px;
+    background: var(--bg-panel); border:1px solid var(--line-dim); color: var(--text-hi);
+    border-radius:8px; padding:8px 14px; cursor:pointer;
+  }
+  .controls button:hover{ border-color: var(--cyan-dim); }
+  .controls .speed{ display:flex; align-items:center; gap:8px; color:var(--text-mid); font-size:13px;}
+  .controls input[type=range]{ accent-color: var(--cyan); }
+
+  .legend{ display:flex; gap:18px; margin-top:14px; flex-wrap:wrap; font-size:12px; color: var(--text-mid); }
+  .legend span{ display:inline-flex; align-items:center; gap:6px; }
+  .swatch{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+
+  #historyCanvas{
+    width:100%; height:260px; display:block;
+    background: rgba(255,255,255,.015);
+    border-radius: 12px; border:1px solid var(--line-dim);
+  }
+  .history-foot{
+    display:flex; justify-content:space-between; align-items:center;
+    margin-top:12px; flex-wrap:wrap; gap:10px;
+  }
+  .retro-total{
+    font-family:'IBM Plex Mono', monospace; font-size:14px; color: var(--text-mid);
+  }
+  .retro-total b{ color: var(--warm); font-size:16px; }
+
+  .note{
+    font-size:12.5px; color: var(--text-dim); line-height:1.7; margin-top:14px;
+    border-top:1px solid var(--line-dim); padding-top:14px;
+  }
+  .note a{ color: var(--cyan-dim); }
+
+  footer{
+    max-width:1080px; margin:0 auto; padding: 10px 24px 50px;
+    color: var(--text-dim); font-size:12px; text-align:center;
+    font-family:'IBM Plex Mono', monospace;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    .dial button, .controls button{ transition:none; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="eyebrow">Retrograde Observatory</div>
+  <h1>지구에서 바라본 태양계의 역행 운동</h1>
+  <p>행성을 하나 골라보세요. 실제 공전 반지름과 주기로 지구와 그 행성이 함께 돌고,
+     둘을 잇는 막대의 끝이 하늘 위에 남기는 궤적에서 역행 루프가 그려집니다.</p>
+</header>
+
+<nav class="dial" id="planetDial"></nav>
+
+<main>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2 id="simTitle">Mercury</h2>
+      <span class="sub" id="simSub"></span>
+    </div>
+
+    <div class="sim-layout">
+      <canvas id="orbitCanvas" width="620" height="620"></canvas>
+      <div class="stats">
+        <div class="stat"><div class="k">공전 반지름</div><div class="v" id="statA">-</div></div>
+        <div class="stat"><div class="k">공전 주기</div><div class="v" id="statT">-</div></div>
+        <div class="stat"><div class="k">경과 일수 (모의)</div><div class="v cyan" id="statDays">0</div></div>
+        <div class="stat"><div class="k">막대 연장 길이</div><div class="v" id="statRod">-</div></div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button id="btnPlay">일시정지</button>
+      <button id="btnReset">궤적 지우기</button>
+      <div class="speed">
+        속도
+        <input type="range" id="speedSlider" min="1" max="10" value="4">
+      </div>
+    </div>
+
+    <div class="legend">
+      <span><i class="swatch" style="background:#5b8cff"></i>지구</span>
+      <span><i class="swatch" style="background:var(--warm)"></i>선택한 행성</span>
+      <span><i class="swatch" style="background:var(--cyan)"></i>하늘에 남는 역행 궤적</span>
+    </div>
+  </section>
+
+  <section class="panel">
+    <div class="panel-head">
+      <h2>2026년 1월 1일 이후 역행 이력</h2>
+      <span class="sub" id="histSub"></span>
+    </div>
+    <canvas id="historyCanvas" width="1000" height="260"></canvas>
+    <div class="history-foot">
+      <div class="legend" style="margin-top:0">
+        <span><i class="swatch" style="background:var(--cyan)"></i>순행(정상 방향)</span>
+        <span><i class="swatch" style="background:var(--warm)"></i>역행 구간</span>
+      </div>
+      <div class="retro-total">누적 역행량 &nbsp;<b id="retroTotal">-</b></div>
+    </div>
+    <div class="note">
+      실제 케플러 궤도요소(NASA JPL, Standish 1800–2050 근사식)로 매일의 지구·행성 위치를 계산해
+      지구에서 본 황경(ecliptic longitude)을 구하고, 그 값이 줄어드는 구간(하늘에서 뒤로 물러나는 구간)을
+      역행으로 표시합니다. 궤도는 원이 아닌 실제 타원(이심률 포함)을 사용했습니다.
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  DATA: NASA JPL Keplerian Elements (Standish, 1800–2050) · 정적 페이지, 외부 API 호출 없음
+</footer>
+
+<script>
+"use strict";
+
+/* ------------------------------------------------------------------ */
+/* 1. 행성 자료                                                        */
+/*    - orbit: 애니메이션용 단순 원궤도 (표시 목적, a=AU, T=일)         */
+/*    - elements: History 계산용 실제 케플러 궤도요소                   */
+/*      [a0,ȧ, e0,ė, I0,İ, L0,L̇, peri0,peṙi, node0,noḋe] (deg, deg/Cy) */
+/*      출처: https://ssd.jpl.nasa.gov/planets/approx_pos.html          */
+/* ------------------------------------------------------------------ */
+const EARTH_ORBIT = { a: 1.000, T: 365.256 };
+
+const PLANETS = [
+  { key:"Mercury", label:"수성",  a:0.387,  T:87.97,    color:"#c9c9c9" },
+  { key:"Venus",   label:"금성",  a:0.723,  T:224.70,   color:"#e6c873" },
+  { key:"Mars",    label:"화성",  a:1.524,  T:686.98,   color:"#ff7a52" },
+  { key:"Jupiter", label:"목성",  a:5.203,  T:4332.59,  color:"#d9a066" },
+  { key:"Saturn",  label:"토성",  a:9.537,  T:10759.22, color:"#e8cf9a" },
+  { key:"Uranus",  label:"천왕성", a:19.191, T:30688.5,  color:"#7fd8e0" },
+  { key:"Neptune", label:"해왕성", a:30.069, T:60182.0,  color:"#6a8dff" },
+];
+
+const ELEMENTS = {
+  Mercury: [0.38709927, 0.00000037, 0.20563593, 0.00001906, 7.00497902, -0.00594749,
+            252.25032350, 149472.67411175, 77.45779628, 0.16047689, 48.33076593, -0.12534081],
+  Venus:   [0.72333566, 0.00000390, 0.00677672, -0.00004107, 3.39467605, -0.00078890,
+            181.97909950, 58517.81538729, 131.60246718, 0.00268329, 76.67984255, -0.27769418],
+  Earth:   [1.00000261, 0.00000562, 0.01671123, -0.00004392, -0.00001531, -0.01294668,
+            100.46457166, 35999.37244981, 102.93768193, 0.32327364, 0.0, 0.0],
+  Mars:    [1.52371034, 0.00001847, 0.09339410, 0.00007882, 1.84969142, -0.00813131,
+            -4.55343205, 19140.30268499, -23.94362959, 0.44441088, 49.55953891, -0.29257343],
+  Jupiter: [5.20288700, -0.00011607, 0.04838624, -0.00013253, 1.30439695, -0.00183714,
+            34.39644051, 3034.74612775, 14.72847983, 0.21252668, 100.47390909, 0.20469106],
+  Saturn:  [9.53667594, -0.00125060, 0.05386179, -0.00050991, 2.48599187, 0.00193609,
+            49.95424423, 1222.49362201, 92.59887831, -0.41897216, 113.66242448, -0.28867794],
+  Uranus:  [19.18916464, -0.00196176, 0.04725744, -0.00004397, 0.77263783, -0.00242939,
+            313.23810451, 428.48202785, 170.95427630, 0.40805281, 74.01692503, 0.04240589],
+  Neptune: [30.06992276, 0.00026291, 0.00859048, 0.00005105, 1.77004347, 0.00035372,
+            -55.12002969, 218.45945325, 44.96476227, -0.32241464, 131.78422574, -0.00508664],
+};
+
+/* ------------------------------------------------------------------ */
+/* 2. 케플러 방정식 (History 계산용, 실제 타원 궤도)                     */
+/* ------------------------------------------------------------------ */
+function wrap180(x){ x = x % 360; if (x > 180) x -= 360; if (x < -180) x += 360; return x; }
+const D2R = Math.PI/180, R2D = 180/Math.PI;
+
+function solveKeplerE(Mdeg, e){
+  const M = wrap180(Mdeg);
+  const eStar = e * R2D;
+  let E = M + eStar*Math.sin(M*D2R);
+  for (let i=0;i<15;i++){
+    const dM = M - (E - eStar*Math.sin(E*D2R));
+    const dE = dM/(1 - e*Math.cos(E*D2R));
+    E += dE;
+    if (Math.abs(dE) < 1e-7) break;
+  }
+  return E;
+}
+
+function heliocentricXY(name, jd){
+  const el = ELEMENTS[name];
+  const [a0,ad,e0,ed,I0,Id,L0,Ld,W0,Wd,O0,Od] = el;
+  const T = (jd - 2451545.0)/36525.0;
+  const a = a0 + ad*T, e = e0 + ed*T, I = I0 + Id*T;
+  const L = L0 + Ld*T, Wp = W0 + Wd*T, Om = O0 + Od*T;
+  const w = Wp - Om, M = L - Wp;
+  const E = solveKeplerE(M, e);
+  const xp = a*(Math.cos(E*D2R) - e);
+  const yp = a*Math.sqrt(1-e*e)*Math.sin(E*D2R);
+  const wr = w*D2R, Or = Om*D2R;
+  const cw=Math.cos(wr), sw=Math.sin(wr), cO=Math.cos(Or), sO=Math.sin(Or);
+  const cI=Math.cos(I*D2R);
+  const x = (cw*cO - sw*sO*cI)*xp + (-sw*cO - cw*sO*cI)*yp;
+  const y = (cw*sO + sw*cO*cI)*xp + (-sw*sO + cw*cO*cI)*yp;
+  return {x,y};
+}
+
+function geocentricLongitudeDeg(name, jd){
+  const e = heliocentricXY("Earth", jd);
+  const p = heliocentricXY(name, jd);
+  const dx = p.x - e.x, dy = p.y - e.y;
+  let lon = Math.atan2(dy,dx)*R2D;
+  return (lon % 360 + 360) % 360;
+}
+
+function dateToJD(date){ return date.getTime()/86400000 + 2440587.5; }
+
+/* ------------------------------------------------------------------ */
+/* 3. UI 구성 - 행성 다이얼                                             */
+/* ------------------------------------------------------------------ */
+const dial = document.getElementById("planetDial");
+PLANETS.forEach(p=>{
+  const b = document.createElement("button");
+  b.textContent = p.label + " · " + p.key;
+  b.dataset.key = p.key;
+  b.addEventListener("click", ()=> selectPlanet(p.key));
+  dial.appendChild(b);
+});
+
+function setActiveButton(key){
+  [...dial.children].forEach(b=> b.classList.toggle("active", b.dataset.key===key));
+}
+
+/* ------------------------------------------------------------------ */
+/* 4. 궤도 애니메이션 (2D 평면 뷰)                                       */
+/* ------------------------------------------------------------------ */
+const canvas = document.getElementById("orbitCanvas");
+const ctx = canvas.getContext("2d");
+const W = canvas.width, H = canvas.height;
+const cx = W/2, cy = H/2;
+
+let current = PLANETS[0];
+let simDays = 0;
+let lastTraceDay = 0;
+let trace = [];              // {x,y} points on the sky ring
+let playing = true;
+let speed = 4;                 // 1~10, simulated days per animation frame(ish)
+const TRACE_EVERY_DAYS = 10;
+const MAX_TRACE = 4000;
+
+function scaleFor(planet){
+  const maxA = Math.max(EARTH_ORBIT.a, planet.a);
+  const margin = 1.28;
+  return (Math.min(W,H)/2 - 24) / (maxA*margin);
+}
+
+function rodProjectionRadius(planet){
+  return planet.a*1.2 + 0.35;   // 대상 행성 궤도보다 살짝 길게 (AU 단위)
+}
+
+function selectPlanet(key){
+  current = PLANETS.find(p=>p.key===key);
+  simDays = 0; lastTraceDay = 0; trace = [];
+  setActiveButton(key);
+  document.getElementById("simTitle").textContent = current.label + " (" + current.key + ")";
+  document.getElementById("simSub").textContent = "지구 ↔ " + current.label + " 를 잇는 막대의 하늘 투영";
+  document.getElementById("statA").textContent = current.a.toFixed(3) + " AU";
+  document.getElementById("statT").textContent = current.T.toFixed(1) + " 일";
+  document.getElementById("statRod").textContent = rodProjectionRadius(current).toFixed(2) + " AU";
+  buildHistory(current);
+  drawScene();
+}
+
+function drawScene(){
+  ctx.clearRect(0,0,W,H);
+  const scale = scaleFor(current);
+
+  // 하늘 원(막대 투영 반지름)
+  const skyR = rodProjectionRadius(current) * scale;
+  ctx.beginPath();
+  ctx.arc(cx,cy,skyR,0,Math.PI*2);
+  ctx.strokeStyle = "rgba(77,216,208,0.18)";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // 궤도선
+  ctx.beginPath(); ctx.arc(cx,cy, EARTH_ORBIT.a*scale, 0, Math.PI*2);
+  ctx.strokeStyle = "rgba(91,140,255,0.35)"; ctx.stroke();
+
+  ctx.beginPath(); ctx.arc(cx,cy, current.a*scale, 0, Math.PI*2);
+  ctx.strokeStyle = "rgba(255,122,82,0.30)"; ctx.stroke();
+
+  // 태양
+  ctx.beginPath(); ctx.arc(cx,cy,7,0,Math.PI*2);
+  ctx.fillStyle = "#ffd76a"; ctx.shadowColor="#ffd76a"; ctx.shadowBlur=14;
+  ctx.fill(); ctx.shadowBlur=0;
+
+  // 위치 계산 (단순 원궤도, 애니메이션 표시용)
+  const thE = 2*Math.PI*(simDays/EARTH_ORBIT.T);
+  const thP = 2*Math.PI*(simDays/current.T);
+  const ex = cx + Math.cos(thE)*EARTH_ORBIT.a*scale;
+  const ey = cy + Math.sin(thE)*EARTH_ORBIT.a*scale;
+  const px = cx + Math.cos(thP)*current.a*scale;
+  const py = cy + Math.sin(thP)*current.a*scale;
+
+  // 막대 + 투영 지점 (실제 계산은 drawRodAndTrace 안에서 처리)
+  const dirx = px-ex, diry = py-ey;
+  const dist = Math.hypot(dirx,diry) || 1e-6;
+  const ux = dirx/dist, uy = diry/dist;
+  drawRodAndTrace(ex,ey,ux,uy,skyR);
+
+  // 지구, 행성 마커
+  ctx.beginPath(); ctx.arc(ex,ey,6,0,Math.PI*2);
+  ctx.fillStyle="#5b8cff"; ctx.shadowColor="#5b8cff"; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
+
+  ctx.beginPath(); ctx.arc(px,py,5,0,Math.PI*2);
+  ctx.fillStyle=current.color; ctx.shadowColor=current.color; ctx.shadowBlur=10; ctx.fill(); ctx.shadowBlur=0;
+
+  document.getElementById("statDays").textContent = Math.floor(simDays);
+}
+
+function drawRodAndTrace(ex,ey,ux,uy,skyR){
+  // 막대의 끝점: 지구에서 (ux,uy) 방향으로 나아가다 '하늘 원'(태양 중심 skyR)과 만나는 점
+  // 태양 중심 원과 지구에서 출발하는 반직선의 교점을 계산
+  const ox = ex-cx, oy = ey-cy;
+  const b = 2*(ox*ux+oy*uy);
+  const c = ox*ox+oy*oy - skyR*skyR;
+  const disc = b*b - 4*c;
+  let t = 0;
+  if (disc >= 0){
+    const sq = Math.sqrt(disc);
+    const t1 = (-b+sq)/2, t2=(-b-sq)/2;
+    t = Math.max(t1,t2); // 앞쪽 교점
+  }
+  const tipx = ex + ux*t, tipy = ey + uy*t;
+
+  // 막대
+  ctx.beginPath();
+  ctx.moveTo(ex,ey); ctx.lineTo(tipx,tipy);
+  ctx.strokeStyle = "rgba(77,216,208,0.9)"; ctx.lineWidth = 1.6;
+  ctx.stroke();
+
+  ctx.beginPath(); ctx.arc(tipx,tipy,3.2,0,Math.PI*2);
+  ctx.fillStyle="#eafffb"; ctx.shadowColor="#4dd8d0"; ctx.shadowBlur=8; ctx.fill(); ctx.shadowBlur=0;
+
+  // 궤적 점 찍기
+  if (simDays - lastTraceDay >= TRACE_EVERY_DAYS){
+    trace.push({x:tipx,y:tipy});
+    if (trace.length > MAX_TRACE) trace.shift();
+    lastTraceDay = simDays;
+  }
+  for (let i=0;i<trace.length;i++){
+    const p = trace[i];
+    const age = (trace.length-i)/trace.length;
+    ctx.beginPath(); ctx.arc(p.x,p.y, 2.1, 0, Math.PI*2);
+    ctx.fillStyle = "rgba(77,216,208," + (0.15+0.55*(1-age*0.6)).toFixed(2) + ")";
+    ctx.fill();
+  }
+}
+
+/* 애니메이션 루프 */
+let lastTs = null;
+function tick(ts){
+  if (lastTs===null) lastTs = ts;
+  const dtSec = (ts-lastTs)/1000;
+  lastTs = ts;
+  if (playing){
+    simDays += dtSec * speed * 8; // 속도 배율(느리게 시작)
+    drawScene();
+  }
+  requestAnimationFrame(tick);
+}
+requestAnimationFrame(tick);
+
+document.getElementById("btnPlay").addEventListener("click", (e)=>{
+  playing = !playing;
+  e.target.textContent = playing ? "일시정지" : "재생";
+});
+document.getElementById("btnReset").addEventListener("click", ()=>{
+  trace = []; lastTraceDay = simDays;
+});
+document.getElementById("speedSlider").addEventListener("input", (e)=>{
+  speed = Number(e.target.value);
+});
+
+/* ------------------------------------------------------------------ */
+/* 5. History 그래프 (실제 타원 궤도 기반, 2026-01-01 ~ 오늘)             */
+/* ------------------------------------------------------------------ */
+const histCanvas = document.getElementById("historyCanvas");
+const hctx = histCanvas.getContext("2d");
+
+function resizeHistCanvas(){
+  const rect = histCanvas.getBoundingClientRect();
+  histCanvas.width = Math.max(300, rect.width) * devicePixelRatio;
+  histCanvas.height = 260 * devicePixelRatio;
+  hctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+}
+
+function buildHistory(planet){
+  resizeHistCanvas();
+  const startJD = dateToJD(new Date(Date.UTC(2026,0,1)));
+  const endJD = dateToJD(new Date());
+  const totalDays = Math.max(1, Math.round(endJD-startJD));
+  const step = Math.max(1, Math.floor(totalDays/300));
+
+  const pts = [];
+  let retroDeg = 0;
+  let prevLon = null;
+  for (let d=0; d<=totalDays; d+=step){
+    const jd = startJD + d;
+    const lon = geocentricLongitudeDeg(planet.key, jd);
+    let retro = false;
+    if (prevLon !== null){
+      let diff = lon - prevLon;
+      diff = ((diff+180)%360+360)%360 - 180;
+      if (diff < 0){ retroDeg += -diff; retro = true; }
+    }
+    pts.push({d, lon, retro});
+    prevLon = lon;
+  }
+
+  document.getElementById("histSub").textContent =
+    "2026-01-01 ~ 오늘 (" + totalDays + "일간)";
+  document.getElementById("retroTotal").textContent = retroDeg.toFixed(1) + "°";
+
+  drawHistoryChart(pts, totalDays);
+}
+
+function drawHistoryChart(pts, totalDays){
+  const w = histCanvas.width/devicePixelRatio, h = histCanvas.height/devicePixelRatio;
+  hctx.clearRect(0,0,w,h);
+  const padL=40, padR=14, padT=14, padB=22;
+  const plotW = w-padL-padR, plotH = h-padT-padB;
+
+  // 축
+  hctx.strokeStyle = "rgba(255,255,255,0.08)";
+  hctx.beginPath();
+  hctx.moveTo(padL, padT); hctx.lineTo(padL, padT+plotH); hctx.lineTo(padL+plotW, padT+plotH);
+  hctx.stroke();
+
+  hctx.fillStyle = "rgba(255,255,255,0.35)";
+  hctx.font = "11px 'IBM Plex Mono', monospace";
+  hctx.fillText("0°", 8, padT+plotH+4);
+  hctx.fillText("360°", 4, padT+8);
+
+  const xOf = d => padL + (d/Math.max(1,totalDays))*plotW;
+  const yOf = lon => padT + (1-lon/360)*plotH;
+
+  for (let i=1;i<pts.length;i++){
+    const a = pts[i-1], b = pts[i];
+    // 황경이 0/360 경계를 넘어가면 선을 끊는다
+    if (Math.abs(b.lon-a.lon) > 180) continue;
+    hctx.beginPath();
+    hctx.moveTo(xOf(a.d), yOf(a.lon));
+    hctx.lineTo(xOf(b.d), yOf(b.lon));
+    hctx.strokeStyle = b.retro ? "#ff7a52" : "#4dd8d0";
+    hctx.lineWidth = b.retro ? 2.4 : 1.6;
+    hctx.stroke();
+  }
+}
+
+window.addEventListener("resize", ()=> buildHistory(current));
+
+/* ------------------------------------------------------------------ */
+/* 6. 시작                                                             */
+/* ------------------------------------------------------------------ */
+selectPlanet(PLANETS[0].key);
+</script>
+</body>
+</html>
